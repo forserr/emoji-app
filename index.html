@@ -1,1 +1,336 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dreamy Emoji Slicer</title>
+    <!-- Подключаем Telegram Web Apps SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Подключаем иконки Boxicons -->
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <style>
+        /* ОСНОВНЫЕ СТИЛИ - ИСПОЛЬЗУЕМ ПЕРЕМЕННЫЕ ТЕМЫ ТГ */
+        :root {
+            --bg-color: var(--tg-theme-bg-color, #f5f5f7);
+            --text-color: var(--tg-theme-text-color, #000000);
+            --hint-color: var(--tg-theme-hint-color, #707579);
+            --link-color: var(--tg-theme-link-color, #248bed);
+            --primary-color: var(--tg-theme-button-color, #248bed);
+            --primary-text-color: var(--tg-theme-button-text-color, #ffffff);
+            --secondary-bg-color: var(--tg-theme-secondary-bg-color, #ffffff);
+            
+            --transition: all 0.2s ease-in-out;
+            --radius-main: 16px;
+            --radius-sub: 10px;
+        }
 
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        h3 {
+            margin-top: 0;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        /* КАСТОМНАЯ КНОПКА ЗАГРУЗКИ */
+        .upload-container {
+            width: 100%;
+            max-width: 350px;
+            margin-bottom: 20px;
+        }
+
+        #upload {
+            display: none; /* Прячем дефолтный инпут */
+        }
+
+        .upload-label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            background-color: var(--secondary-bg-color);
+            border: 2px dashed var(--hint-color);
+            border-radius: var(--radius-main);
+            cursor: pointer;
+            transition: var(--transition);
+            color: var(--hint-color);
+            text-align: center;
+        }
+
+        .upload-label:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+            transform: scale(1.02);
+        }
+
+        .upload-label i {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .upload-label span {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        /* ПАНЕЛЬ УПРАВЛЕНИЯ РАЗМЕРАМИ */
+        .controls-panel {
+            display: none; /* Прячем до загрузки фото */
+            width: 100%;
+            max-width: 350px;
+            background-color: var(--secondary-bg-color);
+            padding: 15px;
+            border-radius: var(--radius-main);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            box-sizing: border-box;
+        }
+
+        .controls-group {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+
+        .input-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .input-wrapper label {
+            font-size: 12px;
+            color: var(--hint-color);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .control-input {
+            width: 80px;
+            padding: 10px;
+            border: 1px solid rgba(0,0,0,0.1);
+            border-radius: var(--radius-sub);
+            font-size: 18px;
+            text-align: center;
+            background: var(--bg-color);
+            color: var(--text-color);
+            transition: var(--transition);
+        }
+
+        .control-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(36, 139, 237, 0.2);
+        }
+
+        /* ПРЕДПРОСМОТР И СЕТКА */
+        #preview-card {
+            display: none; /* Прячем до загрузки фото */
+            width: 100%;
+            max-width: 350px;
+            background-color: var(--secondary-bg-color);
+            border-radius: var(--radius-main);
+            padding: 10px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+
+        #preview-container {
+            position: relative;
+            display: block;
+            width: 100%;
+            border-radius: var(--radius-sub);
+            overflow: hidden;
+        }
+
+        #preview-img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .grid-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: grid;
+            pointer-events: none; /* Не мешает тапам */
+        }
+
+        .grid-cell {
+            border: 1px solid rgba(255, 255, 255, 0.5); /* Белые полупрозрачные линии */
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1) inset; /* Тонкая черная тень внутри для контраста */
+        }
+
+        /* ГЛАВНАЯ КНОПКА ДЕЙСТВИЯ (если не используем MainButton ТГ) */
+        .main-btn {
+            display: none; /* Покажем, когда фото загружено */
+            width: 100%;
+            max-width: 350px;
+            background-color: var(--primary-color);
+            color: var(--primary-text-color);
+            border: none;
+            padding: 15px;
+            border-radius: var(--radius-main);
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .main-btn:active {
+            transform: scale(0.98);
+            opacity: 0.9;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h3>✨ Dreamy Emoji</h3>
+    
+    <!-- Секция загрузки -->
+    <div class="upload-container">
+        <input type="file" id="upload" accept="image/*">
+        <label for="upload" class="upload-label" id="uploadLabel">
+            <i class='bx bx-cloud-upload'></i>
+            <span id="uploadText">Выбрать фотографию</span>
+        </label>
+    </div>
+
+    <!-- Панель управления (появляется после загрузки) -->
+    <div class="controls-panel" id="controlsPanel">
+        <div class="controls-group">
+            <div class="input-wrapper">
+                <label>Ширина</label>
+                <input type="number" id="wInput" class="control-input" value="3" min="1" max="10">
+            </div>
+            <i class='bx bx-x' style="font-size: 24px; color: var(--hint-color); margin-top: 20px;"></i>
+            <div class="input-wrapper">
+                <label>Высота</label>
+                <input type="number" id="hInput" class="control-input" value="3" min="1" max="10">
+            </div>
+        </div>
+    </div>
+    
+    <!-- Карточка предпросмотра -->
+    <div id="preview-card">
+        <div id="preview-container">
+            <img id="preview-img" src="" alt="Предпросмотр">
+            <div id="grid" class="grid-overlay"></div>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Развернуть на максимум
+        
+        // Настройка цветов главной кнопки Телеграма
+        tg.MainButton.textColor = tg.themeParams.button_text_color || "#ffffff";
+        tg.MainButton.color = tg.themeParams.button_color || "#248bed";
+
+        const upload = document.getElementById('upload');
+        const uploadLabel = document.getElementById('uploadLabel');
+        const uploadText = document.getElementById('uploadText');
+        const img = document.getElementById('preview-img');
+        const grid = document.getElementById('grid');
+        const wInput = document.getElementById('wInput');
+        const hInput = document.getElementById('hInput');
+        const controlsPanel = document.getElementById('controlsPanel');
+        const previewCard = document.getElementById('preview-card');
+
+        // Функция отрисовки сетки (стала красивее и с контрастом)
+        function updateGrid() {
+            if (!img.src) return;
+            grid.style.gridTemplateColumns = `repeat(${wInput.value}, 1fr)`;
+            grid.style.gridTemplateRows = `repeat(${hInput.value}, 1fr)`;
+            grid.innerHTML = '';
+            
+            const totalCells = wInput.value * hInput.value;
+            // Лимит, чтобы не "повесить" телефон
+            if (totalCells > 100) {
+                tg.showAlert("Слишком много частей! Максимум 100.");
+                wInput.value = 3; hInput.value = 3;
+                updateGrid();
+                return;
+            }
+
+            for (let i = 0; i < totalCells; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'grid-cell';
+                grid.appendChild(cell);
+            }
+        }
+
+        // Обработка загрузки файла
+        upload.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                img.src = event.target.result;
+                
+                // Эффектная замена текста кнопки загрузки на имя файла
+                uploadLabel.style.borderColor = "var(--primary-color)";
+                uploadLabel.style.color = "var(--primary-color)";
+                uploadText.innerText = file.name.length > 20 ? file.name.substring(0,17) + '...' : file.name;
+                
+                // Показываем панель управления и предпросмотр
+                controlsPanel.style.display = 'block';
+                previewCard.style.display = 'block';
+                
+                updateGrid();
+                
+                // Показывать Главную кнопку ТГ "Создать пак"
+                tg.MainButton.setText("✨ Создать пак эмодзи");
+                tg.MainButton.show();
+            };
+            reader.readAsDataURL(file);
+        };
+
+        // Обновление сетки при изменении инпутов
+        [wInput, hInput].forEach(input => {
+            input.oninput = updateGrid;
+        });
+
+        // Обработка нажатия на Главную кнопку Телеграма
+        tg.onEvent('mainButtonClicked', function(){
+            tg.MainButton.showProgress(); // Показать лоадер на кнопке
+            
+            const data = {
+                w: wInput.value,
+                h: hInput.value,
+                action: "start_slicing"
+            };
+            
+            // Отправляем данные боту (саму картинку бот попросит в чате)
+            tg.sendData(JSON.stringify(data)); 
+            
+            // Кнопка `tg.close()` здесь не нужна, sendData сам закроет приложение
+        });
+    </script>
+</body>
+</html>
